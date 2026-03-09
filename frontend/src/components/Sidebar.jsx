@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useAppContext } from '../context/AppContext'
 import { assets } from '../assets/assets';
+import moment from 'moment'
 
 const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
   const {chats, setSelectedChat, theme, setTheme, user, navigate} = useAppContext();
@@ -42,9 +43,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                   <p className='truncate w-full'>
                     { chat.messages.length>0 ? chat.messages[0].content.slice(0, 32) : chat.name }
                   </p>
-                <p className='text-xs text-gray-500 dark:text-[#B1A6C0]'>{chat.updatedAt
-                  ? new Date(chat.updatedAt).toLocaleDateString()
-                  : ""}</p>
+                <p className='text-xs text-gray-500 dark:text-[#B1A6C0]'>{moment(chat.updatedAt).fromNow()}</p>
                 </div>
                 <img src={assets.bin_icon} alt="" className='hidden group-hover:block w-4 cursor-pointer not-dark:invert' />
               </div>
