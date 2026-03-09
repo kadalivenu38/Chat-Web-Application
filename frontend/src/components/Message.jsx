@@ -26,7 +26,7 @@ const Message = ({ message }) => {
           {message.isImage ? (
             <img src={message.content} className='w-full max-w-sm mt-2 rounded-md' alt="" />
           ) : (
-            <div className='text-lg dark:text-primary reset-tw [word-spacing:3px]'>
+            <div className='text-lg dark:text-secondary reset-tw [word-spacing:3px]'>
               <Markdown>{message.content}</Markdown>
             </div>
           )}
