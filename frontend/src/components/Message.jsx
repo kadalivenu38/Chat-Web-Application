@@ -14,17 +14,17 @@ const Message = ({ message }) => {
       {message.role === 'user' ? (
         <div className='flex items-start justify-end my-4 gap-2'>
           <div className='flex flex-col gap-2 p-2 px-4 bg-slate-50 dark:bg-[#57317C]/30 
-            border border-[#80609F]/30 rounded-md max-w-2xl'>
+            border border-[#80609F]/30 rounded-md max-w-3xl'>
               <p className='text-lg dark:text-primary [word-spacing:3px]'>{message.content}</p>
               <span className='text-xs text-gray-400 dark:text-[#B1A6C0]'>{moment(message.timestamp).fromNow()}</span>
             </div>
             <img src={assets.user_icon} className='w-8 rounded-full' alt="" />
         </div>
       ) : (
-        <div className='inline-flex flex-col gap-2 p-2 px-4 max-w-4xl bg-primary/20
+        <div className='inline-flex flex-col gap-2 p-2 px-4 max-w-5xl bg-primary/20
           dark:bg-[#57317C]/30 border border-[#80609F]/30 rounded-md my-4 overflow-hidden'>
           {message.isImage ? (
-            <img src={message.content} className='w-full max-w-sm mt-2 rounded-md' alt="" />
+            <img src={message.content} className='w-full max-w-xs mt-2 rounded-md' alt="" />
           ) : (
             <div className='text-lg dark:text-secondary reset-tw [word-spacing:3px]'>
               <Markdown>{message.content}</Markdown>

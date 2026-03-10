@@ -34,7 +34,7 @@ const Chatbox = () => {
   }, [messages])
 
   return (
-    <div className='flex-1 flex flex-col justify-between m-5 md:m-10 xl:mx-30 max-md:mt-14 2xl:pr-40'>
+    <div className='flex-1 flex flex-col justify-between md:m-3 xl:mx-20 max-md:mt-14'>
       {/* Chat messages */}
       <div ref={containerRef} className='flex-1 mb-5 overflow-y-scroll'>
         {messages.length === 0 && (
@@ -57,7 +57,7 @@ const Chatbox = () => {
       </div>
 
       {mode === 'image' && (
-        <label className='inline-flex items-center gap-2 mb-3 text-sm mx-auto'>
+        <label className='inline-flex items-center gap-2 mb-2 text-sm mx-auto'>
           <p className='text-xs'>Publish Generated Image to Community</p>
           <input type="checkbox" className='cursor-pointer' checked={isPublished} onChange={(e)=>setIsPublished(e.target.checked)} />
         </label>
@@ -65,15 +65,16 @@ const Chatbox = () => {
 
       {/* Prompt input box */}
       <form onSubmit={onSubmit} className='bg-primary/20 dark:bg-[#583C79]/30 border border-primary
-        dark:border-[#80609F]/30 rounded-full w-full max-w-4xl p-2 pl-4 mx-auto flex gap-4 items-center'>
-        <select onChange={(e)=> setMode(e.target.value)} value={mode} className='text-md pl-2 pr-2 outline-none'>
-          <option className='dark:bg-gray-900' value="text">Text</option>
-          <option className='dark:bg-gray-900' value="image">Image</option>
+        dark:border-[#80609F]/30 rounded-full w-full max-w-4xl p-1 mx-auto flex gap-2 items-center'>
+        <select onChange={(e)=> setMode(e.target.value)} value={mode} className='text-md py-2 px-2.5 outline-none
+          rounded-[25px] hover:bg-purple-400 dark:hover:bg-purple-600 cursor-pointer'>
+          <option className='dark:bg-gray-800 bg-gray-300' value="text">Text</option>
+          <option className='dark:bg-gray-800 bg-gray-300' value="image">Image</option>
         </select>
         <input type="text" placeholder='Type your prompt here...' value={prompt} onChange={(e)=> setPrompt(e.target.value)}
-          className='flex-1 w-full text-md outline-none' required />
+          className='flex-1 w-full text-md outline-none [word-spacing:1px]' required />
         <button disabled={loading}>
-          <img src={loading ? assets.stop_icon : assets.send_icon} className='w-9 cursor-pointer' alt="" />
+          <img src={loading ? assets.stop_icon : assets.send_icon} className='w-10 cursor-pointer' alt="" />
         </button>
       </form>
     </div>
