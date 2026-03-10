@@ -11,9 +11,9 @@ import Loading from './pages/Loading'
 
 function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const {pathName} = useLocation()
+  const {pathname} = useLocation()
 
-  if(pathName === '/loading'){
+  if(pathname === '/loading'){
     return <Loading />
   }
 
