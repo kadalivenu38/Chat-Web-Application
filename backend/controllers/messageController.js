@@ -1,23 +1,29 @@
 import imgKit from "../config/imageKit.js";
-import openai from "../config/openai.js";
+import gemini from "../config/gemini.js";
 import Chat from "../models/Chat.js";
 import User from "../models/User.js";
-import axios from "axios";
 
-// Text Generation
+
+// TEXT GENERATION
 const textMessage = async (req, res) => {
   try {
     const userId = req.user._id;
 
     if (req.user.credits < 1) {
       return res.status(409).json({
-        message: "You don't have enough credits to use this feature.",
+        message: "You don't have enough credits",
       });
     }
+
     const { chatId, prompt } = req.body;
 
-    // Finding Chat
     const chat = await Chat.findOne({ userId, _id: chatId });
+
+    if (!chat) {
+      return res.status(404).json({ message: "Chat not found" });
+    }
+
+    // store user message
     chat.messages.push({
       role: "user",
       content: prompt,
@@ -25,97 +31,137 @@ const textMessage = async (req, res) => {
       isImage: false,
     });
 
-    // Calling the gemini api
-    const { choices } = await openai.chat.completions.create({
+    // Gemini text generation
+    const response = await gemini.models.generateContent({
       model: "gemini-3-flash-preview",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a helpful, friendly neighbourhood AI assistant like ChatGPT & Claude.",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
+      contents: prompt,
     });
+
+    const parts = response?.candidates?.[0]?.content?.parts;
+    const replyText = parts?.find((p) => p.text)?.text;
     const reply = {
-      ...choices[0].message,
+      role: "assistant",
+      content: replyText,
       timestamp: Date.now(),
       isImage: false,
     };
-    res.status(200).json({ reply });
 
-    // saving the response into DB(Chat, User models)
     chat.messages.push(reply);
     await chat.save();
 
-    await User.updateOne({ _id: userId }, { $inc: { credits: -1 } });
+    await User.updateOne(
+      { _id: userId },
+      { $inc: { credits: -1 } }
+    );
+
+    return res.status(200).json({ reply });
+
   } catch (err) {
-    console.log(err);
+    console.error(err);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
-// Image Generation
+
+// IMAGE GENERATION
 const imageMessage = async (req, res) => {
   try {
     const userId = req.user._id;
+    const { prompt, chatId, isPublished } = req.body;
 
-    //  checking credits
+    // Credit check
     if (req.user.credits < 2) {
       return res.status(409).json({
-        message: "You don't have enough credits to use this feature.",
+        message: "You don't have enough credits",
       });
     }
-    const { prompt, chatId, isPublished } = req.body;
+
+    // Prompt validation
+    if (!prompt || prompt.trim().length === 0) {
+      return res.status(400).json({
+        message: "Prompt is required",
+      });
+    }
 
     // Find chat
     const chat = await Chat.findOne({ userId, _id: chatId });
-    // Push user message
-    chat.messages.push({
-      role: "user",
-      content: prompt,
-      timestamp: Date.now(),
-      isImage: false,
+    if (!chat) {
+      return res.status(404).json({
+        message: "Chat not found",
+      });
+    }
+
+    // Generate image using Gemini
+    const response = await gemini.models.generateContent({
+      model: "gemini-3.1-flash-image-preview",
+      contents: prompt,
     });
 
-    // Encode the prompt
-    const encodedPrompt = encodeURIComponent(prompt);
+    const parts = response?.candidates?.[0]?.content?.parts;
+    if (!parts || parts.length === 0) {
+      return res.status(500).json({
+        message: "Image generation failed",
+      });
+    }
 
-    // Construct ImageKit AI generation URL
-    const generatedImgUrl = `${process.env.IMAGEKIT_URL}/ik-genimg-prompt-${encodedPrompt}/quickgpt/${Date.now()}.png?tr=w-550,h-600`;
-    const imgResponse = await axios.get(generatedImgUrl, {
-      responseType: "arraybuffer",
-    });
+    let buffer = null;
+    for (const part of parts) {
+      if (part.inlineData?.data) {
+        buffer = Buffer.from(part.inlineData.data, "base64");
+        break;
+      }
+    }
 
-    // Convert img into a Base64 URL
-    const base64Img = `data:image/png;base64,${Buffer.from(imgResponse.data, "binary").toString("base64")}`;
+    if (!buffer) {
+      return res.status(500).json({
+        message: "No image returned from AI",
+      });
+    }
 
-    // Upload Base64 URL into ImageKit Media Library
-    const uploadResponse = await imgKit.upload({
-      file: base64Img,
+    // Upload image to ImageKit
+    const upload = await imgKit.files.upload({
+      file: buffer,
       fileName: `${Date.now()}.png`,
       folder: "QuickGPT",
     });
+    const imageUrl = upload.url;
 
+    // Create reply message
     const reply = {
       role: "assistant",
-      content: uploadResponse.url,
+      content: imageUrl,
       timestamp: Date.now(),
       isImage: true,
       isPublished,
     };
 
-    return res.status(200).json({ reply });
+    // Save chat messages
+    chat.messages.push(
+      {
+        role: "user",
+        content: prompt,
+        timestamp: Date.now(),
+        isImage: false,
+      },
+      reply,
+    );
 
-    // saving the response into DB(Chat, User models)
-    chat.messages.push(reply);
-    await chat.save();
-    await User.updateOne({ _id: userId }, { $inc: { credits: -2 } });
+    // Save DB changes
+    await Promise.all([
+      chat.save(),
+      User.updateOne({ _id: userId }, { $inc: { credits: -2 } }),
+    ]);
+
+    // Send response
+    return res.status(200).json({ reply });
   } catch (err) {
-    console.log(err);
+    if (err.status === 429) {
+      return res.status(429).json({
+        message: "Gemini rate limit exceeded. Try again in a few seconds.",
+      });
+    }
+
+    console.error(err);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
