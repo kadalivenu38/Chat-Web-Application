@@ -14,7 +14,7 @@ await dbConn();
 
 // stripe webhooks
 app.post(
-  "/api/stripe",
+  "/stripe",
   express.raw({ type: "application/json" }),
   stripeWebhooks,
 );
@@ -25,6 +25,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // routes
+app.get("/", (req, res) => {
+  res.send("Server is running...");
+});
 app.use("/user", userRouter);
 app.use("/chat", chatRouter);
 app.use("/message", msgRouter);
