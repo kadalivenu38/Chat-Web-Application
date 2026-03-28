@@ -1,13 +1,46 @@
-import { useState } from 'react'
+import { useState } from 'react';
+import { useAppContext } from '../context/AppContext';
+import toast from 'react-hot-toast';
 
 const Login = () => {
   const [state, setState] = useState("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { axios, setToken } = useAppContext();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validation
+    if (!email || !password) {
+      toast.error('Please fill all fields');
+      return;
+    }
+    
+    if (state === "register" && !name) {
+      toast.error('Please enter your name');
+      return;
+    }
+
+    setLoading(true);
+    const url = state === "login" ? "/user/login" : "/user/register";
+    try {
+      const {data} = await axios.post(url, {name, email, password});
+      if (data.token) {
+        setToken(data.token);
+        localStorage.setItem('token', data.token);
+        toast.success(data.message || 'Authentication successful!');
+      } else {
+        toast.error(data.message || 'Authentication failed. Please try again.');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || err.message || 'An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -38,8 +71,8 @@ const Login = () => {
           Create an account? <span onClick={() => setState("register")} className="text-purple-600 cursor-pointer">click here</span>
         </p>
       )}
-      <button type='submit' className="bg-purple-600 hover:bg-purple-800 transition-all text-white w-full py-2 rounded-md cursor-pointer">
-        {state === "register" ? "Create Account" : "Login"}
+      <button type='submit' disabled={loading} className="bg-purple-600 hover:bg-purple-800 transition-all text-white w-full py-2 rounded-md cursor-pointer disabled:opacity-50">
+        {loading ? "Loading..." : (state === "register" ? "Create Account" : "Login")}
       </button>
     </form>
   );

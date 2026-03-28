@@ -80,7 +80,7 @@ const getPublishedImages = async (req, res) => {
       {
         $match: {
           "messages.isImage": true,
-          isPublished: true,
+          "messages.isPublished": true,
         },
       },
       {

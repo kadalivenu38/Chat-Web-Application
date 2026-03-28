@@ -17,6 +17,13 @@ const textMessage = async (req, res) => {
 
     const { chatId, prompt } = req.body;
 
+    // Validation
+    if (!prompt || prompt.trim().length === 0) {
+      return res.status(400).json({
+        message: "Prompt is required",
+      });
+    }
+
     const chat = await Chat.findOne({ userId, _id: chatId });
 
     if (!chat) {
@@ -32,19 +39,53 @@ const textMessage = async (req, res) => {
     });
 
     // Gemini text generation
-    const response = await gemini.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-    });
+    let replyText = null;
+    try {
+      const response = await gemini.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+      });
 
-    const parts = response?.candidates?.[0]?.content?.parts;
-    const replyText = parts?.find((p) => p.text)?.text;
+      const parts = response?.candidates?.[0]?.content?.parts;
+      replyText = parts?.find((p) => p.text)?.text;
+    } catch (geminiErr) {
+      // Fallback models
+      if (geminiErr.status === 429) {
+        throw geminiErr; // Re-throw rate limit errors
+      }
+      
+      try {
+        const fallbackResponse = await gemini.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: prompt,
+        });
+        const parts = fallbackResponse?.candidates?.[0]?.content?.parts;
+        replyText = parts?.find((p) => p.text)?.text;
+      } catch (fallbackErr) {
+        console.error("Fallback model also failed:", fallbackErr);
+        return res.status(500).json({
+          message: "Failed to generate response. Please try again.",
+        });
+      }
+    }
+
+    if (!replyText) {
+      return res.status(500).json({
+        message: "Failed to generate response",
+      });
+    }
+
     const reply = {
       role: "assistant",
       content: replyText,
       timestamp: Date.now(),
       isImage: false,
     };
+
+    // Update chat name from first message if it's still "New Chat"
+    if (chat.messages.length === 1 && chat.name === "New Chat") {
+      chat.name = prompt.slice(0, 30) + (prompt.length > 30 ? "..." : "");
+    }
 
     chat.messages.push(reply);
     await chat.save();
@@ -58,6 +99,13 @@ const textMessage = async (req, res) => {
 
   } catch (err) {
     console.error(err);
+    
+    if (err.status === 429) {
+      return res.status(429).json({
+        message: "Rate limit exceeded. Please try again in a few seconds.",
+      });
+    }
+
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -92,39 +140,54 @@ const imageMessage = async (req, res) => {
     }
 
     // Generate image using Gemini
-    const response = await gemini.models.generateContent({
-      model: "gemini-3.1-flash-image-preview",
-      contents: prompt,
-    });
-
-    const parts = response?.candidates?.[0]?.content?.parts;
-    if (!parts || parts.length === 0) {
-      return res.status(500).json({
-        message: "Image generation failed",
+    let imageUrl = null;
+    try {
+      const response = await gemini.models.generateContent({
+        model: "gemini-3.1-flash-image-preview",
+        contents: [
+          {
+            text: prompt,
+          },
+        ],
       });
-    }
 
-    let buffer = null;
-    for (const part of parts) {
-      if (part.inlineData?.data) {
-        buffer = Buffer.from(part.inlineData.data, "base64");
-        break;
+      const parts = response?.candidates?.[0]?.content?.parts;
+      if (!parts || parts.length === 0) {
+        return res.status(500).json({
+          message: "Image generation failed",
+        });
       }
-    }
 
-    if (!buffer) {
+      let buffer = null;
+      for (const part of parts) {
+        if (part.inlineData?.data) {
+          buffer = Buffer.from(part.inlineData.data, "base64");
+          break;
+        }
+      }
+
+      if (!buffer) {
+        return res.status(500).json({
+          message: "No image returned from AI",
+        });
+      }
+
+      // Upload image to ImageKit
+      const upload = await imgKit.files.upload({
+        file: buffer,
+        fileName: `${Date.now()}.png`,
+        folder: "QuickGPT",
+      });
+      imageUrl = upload.url;
+    } catch (geminiErr) {
+      if (geminiErr.status === 429) {
+        throw geminiErr;
+      }
+      console.error("Image generation error:", geminiErr);
       return res.status(500).json({
-        message: "No image returned from AI",
+        message: "Failed to generate image. Please try again.",
       });
     }
-
-    // Upload image to ImageKit
-    const upload = await imgKit.files.upload({
-      file: buffer,
-      fileName: `${Date.now()}.png`,
-      folder: "QuickGPT",
-    });
-    const imageUrl = upload.url;
 
     // Create reply message
     const reply = {
@@ -132,8 +195,13 @@ const imageMessage = async (req, res) => {
       content: imageUrl,
       timestamp: Date.now(),
       isImage: true,
-      isPublished,
+      isPublished: isPublished === true,
     };
+
+    // Update chat name from first message if it's still "New Chat"
+    if (chat.messages.length === 0 && chat.name === "New Chat") {
+      chat.name = "Generated: " + prompt.slice(0, 30);
+    }
 
     // Save chat messages
     chat.messages.push(
@@ -142,6 +210,7 @@ const imageMessage = async (req, res) => {
         content: prompt,
         timestamp: Date.now(),
         isImage: false,
+        isPublished: false,
       },
       reply,
     );
@@ -157,7 +226,7 @@ const imageMessage = async (req, res) => {
   } catch (err) {
     if (err.status === 429) {
       return res.status(429).json({
-        message: "Gemini rate limit exceeded. Try again in a few seconds.",
+        message: "Rate limit exceeded. Please try again in a few seconds.",
       });
     }
 
