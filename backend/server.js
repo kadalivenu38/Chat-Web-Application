@@ -20,7 +20,7 @@ app.post(
 );
 
 // middlewares
-app.use(cors({ origin: "*" }));
+app.use(cors({ origin: "https://chat-web-application-frontend.vercel.app" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
