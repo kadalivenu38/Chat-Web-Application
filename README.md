@@ -6,6 +6,10 @@ A full-stack chat application with AI-powered text and image generation, user au
 
 This project combines a React + Vite frontend with an Express.js backend and MongoDB persistence. Users can register, create conversations, generate AI text and images, purchase credits via Stripe, and view published community-generated images.
 
+## Live Demo
+
+[Live Application](https://chat-web-application-frontend.vercel.app/)
+
 ## Key Features
 
 - User authentication with JWT
